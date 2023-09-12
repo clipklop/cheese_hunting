@@ -9,7 +9,7 @@ class Text(Font):
         self,
         text: str,
         topleft: tuple[int, int],
-        font_size: int = 30,
+        font_size: int = 50,
         font_color: tuple[int, int, int] | None = None,
     ) -> None:
         super().__init__(None, font_size)

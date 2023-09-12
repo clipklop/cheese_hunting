@@ -1,19 +1,21 @@
 #
 
-import os 
+import os
+import random 
 
 import pygame
 from pygame.sprite import Group
-from pygame.sprite import spritecollide
+from pygame.sprite import spritecollide 
 
-from game_object import GameObject
+from text import Text
+from game_objects import GameObject, Maze, Background
 
 # os.environ['SDL_AUDIODRIVER'] = 'dsp'
 
 
 class Wall(GameObject):
-    # sprite_filename = 'wall'
-    sprite_filename = 'wooden'
+    sprite_filename = 'wall'
+    # sprite_filename = 'wooden'
 
     def calculate_walls_coordinates(self, screen_width, screen_height):
         horizontal_wall_blocks_amount = screen_width // self.width
@@ -32,45 +34,76 @@ class Wall(GameObject):
             ])        
 
         return walls_coordinates
+    
+    def calculate_maze(self, screen_width, screen_height):
+        center = screen_width // 2, screen_height // 2
+        maze_coordinates = []
 
+        for x in range(self.width, center[0]-self.width, self.width*2):
+            maze_coordinates.append([center[0]-x, center[1]+self.width])
+            maze_coordinates.append([center[0]+x, center[1]+self.width])
 
-class Background(pygame.sprite.Sprite):
-    bg_full_path = os.path.join('resources', 'carpet.png')
+        for x in range(self.width, center[0], self.width*2):
+            maze_coordinates.append([center[0]-x, center[1]+self.width])
+            maze_coordinates.append([center[0]+x, center[1]+self.width])
 
-    def __init__(self, location):
-        pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load(self.bg_full_path)
-        self.rect = self.image.get_rect()
-        self.rect.left, self.rect.top = location
+        for x in range(self.width, center[1]-self.width, self.width*2):
+            maze_coordinates.append([center[0]-self.width, center[1]-x])
+            maze_coordinates.append([center[0]-self.width, center[1]+x])
+
+        for x in range(self.width, center[1], self.width*2):
+            maze_coordinates.append([center[0]+self.width, center[1]-x])
+            maze_coordinates.append([center[0]+self.width, center[1]+x])
+
+        return maze_coordinates
 
 
 class Player(GameObject):
     sprite_filename = 'player'
-    player_speed = 2.5
+    player_speed = 5
+
+
+class Cheese(GameObject):
+    sprite_filename = 'cheese'
 
 
 def draw_whole_screen(screen, context):
     # fill the screen with a background
     # screen.fill('salmon')
-    bg = Background((0, 0))
-    # screen.fill([255, 255, 255])
-    screen.blit(bg.image, bg.rect)
+    # bg = Background((0, 0))
+    # screen.blit(bg.image, bg.rect)
+    # bg = Background(0, 0)
+    # screen.blit(bg.image, bg.rect)
+    context['background'].draw(screen)
     
     # draw a character
     context['player'].draw(screen)
 
+    # draw a cheese
+    context['cheese'].draw(screen)
+
     # draw walls
     context['wall'].draw(screen)
+
+    # draw maze
+    context['maze'].draw(screen)
     # [w.draw(screen) for w in context['wall']]
+
+    # draw score
+    Text(str(context['score']), (screen.get_width() - 60, 10)).draw(screen)
 
 
 def compose_context(screen):
     walls = Wall(0, 0)
     walls_coordinates = walls.calculate_walls_coordinates(screen.get_width(), screen.get_height())
-
+    walls_maze = walls.calculate_maze(screen.get_width(), screen.get_height())
     return {
+        'background': Background(0, 0),
         'player': Player(screen.get_width() // 2, screen.get_height() // 2),
+        'cheese': Cheese(100,100),
         'wall': Group(*[Wall(x, y) for (x, y) in walls_coordinates]),
+        'maze': Group(*[Wall(x, y) for (x, y) in walls_maze]),
+        'score': 0
     }
 
 
@@ -95,6 +128,7 @@ def main():
 
         draw_whole_screen(screen, context)
 
+
         # flip or display everything on the screen
         pygame.display.flip()
 
@@ -113,6 +147,16 @@ def main():
 
         if spritecollide(context['player'], context['wall'], dokill=False):
             context['player'].rect.topleft = old_player_topleft
+        
+        if spritecollide(context['player'], context['maze'], dokill=False):
+            context['player'].rect.topleft = old_player_topleft
+
+        if context['player'].is_collided_with(context['cheese']):
+            context['score'] += 1
+            context['cheese'].rect.topleft = (
+                random.randint(Wall.width, screen.get_width() - Wall.width * 2),
+                random.randint(Wall.height, screen.get_height() - Wall.height * 2),
+            )
 
         # limits FPS
         clock.tick(60) / 1000
