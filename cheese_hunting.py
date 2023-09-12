@@ -4,80 +4,23 @@ import os
 import random 
 
 import pygame
+from pygame import Surface
 from pygame.sprite import Group
 from pygame.sprite import spritecollide 
 
 from text import Text
-from game_objects import GameObject, Maze, Background
-
-# os.environ['SDL_AUDIODRIVER'] = 'dsp'
+from game_objects import Wall, Maze, Background, Player, Cheese, Monster
 
 
-class Wall(GameObject):
-    sprite_filename = 'wall'
-    # sprite_filename = 'wooden'
-
-    def calculate_walls_coordinates(self, screen_width, screen_height):
-        horizontal_wall_blocks_amount = screen_width // self.width
-        vertical_wall_blocks_amount = screen_height // self.height
-
-        walls_coordinates = []
-        for block_num in range(horizontal_wall_blocks_amount):
-            walls_coordinates.extend([
-                (block_num * self.width, 0),
-                (block_num * self.width, screen_height - self.height)
-            ])
-        for block_num in range(vertical_wall_blocks_amount):
-            walls_coordinates.extend([
-                (0, block_num * self.height),
-                (screen_width - self.width, block_num * self.height),
-            ])        
-
-        return walls_coordinates
-    
-    def calculate_maze(self, screen_width, screen_height):
-        center = screen_width // 2, screen_height // 2
-        maze_coordinates = []
-
-        for x in range(self.width, center[0]-self.width, self.width*2):
-            maze_coordinates.append([center[0]-x, center[1]+self.width])
-            maze_coordinates.append([center[0]+x, center[1]+self.width])
-
-        for x in range(self.width, center[0], self.width*2):
-            maze_coordinates.append([center[0]-x, center[1]+self.width])
-            maze_coordinates.append([center[0]+x, center[1]+self.width])
-
-        for x in range(self.width, center[1]-self.width, self.width*2):
-            maze_coordinates.append([center[0]-self.width, center[1]-x])
-            maze_coordinates.append([center[0]-self.width, center[1]+x])
-
-        for x in range(self.width, center[1], self.width*2):
-            maze_coordinates.append([center[0]+self.width, center[1]-x])
-            maze_coordinates.append([center[0]+self.width, center[1]+x])
-
-        return maze_coordinates
-
-
-class Player(GameObject):
-    sprite_filename = 'player'
-    player_speed = 5
-
-
-class Cheese(GameObject):
-    sprite_filename = 'cheese'
-
-
-def draw_whole_screen(screen, context):
+def draw_whole_screen(screen: Surface, context: dict[str]) -> None:
     # fill the screen with a background
-    # screen.fill('salmon')
-    # bg = Background((0, 0))
-    # screen.blit(bg.image, bg.rect)
-    # bg = Background(0, 0)
-    # screen.blit(bg.image, bg.rect)
     context['background'].draw(screen)
     
     # draw a character
     context['player'].draw(screen)
+
+    # draw a monster
+    context['monster'].draw(screen)    
 
     # draw a cheese
     context['cheese'].draw(screen)
@@ -87,24 +30,64 @@ def draw_whole_screen(screen, context):
 
     # draw maze
     context['maze'].draw(screen)
-    # [w.draw(screen) for w in context['wall']]
 
     # draw score
     Text(str(context['score']), (screen.get_width() - 60, 10)).draw(screen)
 
 
-def compose_context(screen):
+def compose_context(screen: Surface) -> dict[str]:
     walls = Wall(0, 0)
     walls_coordinates = walls.calculate_walls_coordinates(screen.get_width(), screen.get_height())
-    walls_maze = walls.calculate_maze(screen.get_width(), screen.get_height())
+    
+    maze = Maze(0, 0)
+    maze_coordinates = maze.calculate_maze(screen.get_width(), screen.get_height())
+    
     return {
+        'score': 0,
         'background': Background(0, 0),
         'player': Player(screen.get_width() // 2, screen.get_height() // 2),
-        'cheese': Cheese(100,100),
+        'monster': Monster(80, 80),
+        'cheese': Cheese(40,40),
         'wall': Group(*[Wall(x, y) for (x, y) in walls_coordinates]),
-        'maze': Group(*[Wall(x, y) for (x, y) in walls_maze]),
-        'score': 0
+        'maze': Group(*[Maze(x, y) for (x, y) in maze_coordinates]),
     }
+
+
+def player_move(player: Player) -> None:
+    # add support of WASD and arrows keys for character moving
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_w] or keys[pygame.K_UP]:
+        player.rect = player.rect.move(0, -1 * player.player_speed)
+    if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+        player.rect = player.rect.move(0, player.player_speed)
+    if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+        player.rect = player.rect.move(-1 * player.player_speed, 0)
+    if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+        player.rect = player.rect.move(player.player_speed, 0)
+
+
+def monster_move(player: Player, monster: Monster) -> None:
+    # Move the enemy randomly on the screen
+    direction = random.choice(['left', 'right', 'up', 'down', 'to_player'])
+
+    if direction == 'left':
+        monster.rect = monster.rect.move(-1 * monster.monster_speed, 0)
+    elif direction == 'right':
+        monster.rect = monster.rect.move(monster.monster_speed, 0)
+    elif direction == 'up':
+        monster.rect = monster.rect.move(0, -1 * monster.monster_speed)
+    elif direction == 'down':
+        monster.rect = monster.rect.move(0, monster.monster_speed)
+    if direction == 'to_player':
+        # Calculate the distance between the enemy and the player
+        distance_x = player.rect.x - monster.rect.x
+        distance_y = player.rect.y - monster.rect.y
+
+        distance = (distance_x ** 2 + distance_y ** 2) ** 0.5
+        
+        if distance != 0:
+            monster.rect.x += monster.monster_speed * distance_x / distance
+            monster.rect.y += monster.monster_speed * distance_y / distance    
 
 
 def main():
@@ -117,7 +100,11 @@ def main():
     
     context = compose_context(screen)
 
-    player = Player(*screen_center)
+    player = context['player']
+    monster = context['monster']
+    cheese = context['cheese']
+    walls = context['wall']
+    maze = context['maze']
 
     while running:
         # poll for events
@@ -125,38 +112,45 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-
         draw_whole_screen(screen, context)
-
 
         # flip or display everything on the screen
         pygame.display.flip()
 
-        old_player_topleft = context['player'].rect.topleft
+        old_player_topleft = player.rect.topleft
+        old_cheese_topleft = cheese.rect.topleft
+        old_monster_topleft= monster.rect.topleft
 
-        # add support of WASD and arrows keys for character moving
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
-            context['player'].rect = context['player'].rect.move(0, -1 * player.player_speed)
-        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            context['player'].rect = context['player'].rect.move(0, player.player_speed)
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            context['player'].rect = context['player'].rect.move(-1 * player.player_speed, 0)
-        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            context['player'].rect = context['player'].rect.move(player.player_speed, 0)
+        player_move(player=player)
 
-        if spritecollide(context['player'], context['wall'], dokill=False):
+        monster_move(player=player, monster=monster)    
+
+        if spritecollide(player, context['wall'], dokill=False):
             context['player'].rect.topleft = old_player_topleft
         
         if spritecollide(context['player'], context['maze'], dokill=False):
             context['player'].rect.topleft = old_player_topleft
 
-        if context['player'].is_collided_with(context['cheese']):
+        if player.is_collided_with(cheese):
             context['score'] += 1
-            context['cheese'].rect.topleft = (
+            cheese.rect.topleft = (
                 random.randint(Wall.width, screen.get_width() - Wall.width * 2),
                 random.randint(Wall.height, screen.get_height() - Wall.height * 2),
             )
+
+        if monster.is_collided_with(cheese):
+            monster.rect.topleft = old_monster_topleft
+
+        if spritecollide(cheese, maze, dokill=False):
+            cheese.rect.topleft = old_cheese_topleft
+        
+        # if spritecollide(monster, maze, dokill=False):
+        #     monster.rect.topleft = old_monster_topleft
+
+        if spritecollide(monster, walls, dokill=False):
+            monster.rect.topleft = old_monster_topleft        
+
+
 
         # limits FPS
         clock.tick(60) / 1000
