@@ -1,1 +1,6 @@
-# A simple 2D game, pacman-like to get some cheese
+# Pacman-like 2D game to get some cheese and evade from monsters
+
+Написать игру на Python. Как Пакмен, только без фруктов: есть лабиринт, есть персонаж, которым игрок управляет стрелками, есть противники, которые двигаются случайно. Если игрок натыкается 
+на противника – game over.
+
+Используйте для этого Pygame – движок для написания игр на Python.
