@@ -1,15 +1,32 @@
 #
 
-import os
 import random 
 
 import pygame
 from pygame import Surface
 from pygame.sprite import Group
-from pygame.sprite import spritecollide 
+from pygame.sprite import spritecollide, spritecollideany, collide_rect
 
 from text import Text
 from game_objects import Wall, Maze, Background, Player, Cheese, Monster
+
+
+def compose_context(screen: Surface) -> dict[str]:
+    walls = Wall(0, 0)
+    walls_coordinates = walls.calculate_walls_coordinates(screen.get_width(), screen.get_height())
+    
+    maze = Maze(0, 0)
+    maze_coordinates = maze.calculate_maze(screen.get_width(), screen.get_height())
+    
+    return {
+        'score': 0,
+        'background': Background(0, 0),
+        'player': Player(screen.get_width() // 2, screen.get_height() // 2),
+        'monster': Monster(80, 80),
+        'cheese': Cheese(40,40),
+        'wall': Group(*[Wall(x, y) for (x, y) in walls_coordinates]),
+        'maze': Group(*[Maze(x, y) for (x, y) in maze_coordinates]),
+    }
 
 
 def draw_whole_screen(screen: Surface, context: dict[str]) -> None:
@@ -33,24 +50,6 @@ def draw_whole_screen(screen: Surface, context: dict[str]) -> None:
 
     # draw score
     Text(str(context['score']), (screen.get_width() - 60, 10)).draw(screen)
-
-
-def compose_context(screen: Surface) -> dict[str]:
-    walls = Wall(0, 0)
-    walls_coordinates = walls.calculate_walls_coordinates(screen.get_width(), screen.get_height())
-    
-    maze = Maze(0, 0)
-    maze_coordinates = maze.calculate_maze(screen.get_width(), screen.get_height())
-    
-    return {
-        'score': 0,
-        'background': Background(0, 0),
-        'player': Player(screen.get_width() // 2, screen.get_height() // 2),
-        'monster': Monster(80, 80),
-        'cheese': Cheese(40,40),
-        'wall': Group(*[Wall(x, y) for (x, y) in walls_coordinates]),
-        'maze': Group(*[Maze(x, y) for (x, y) in maze_coordinates]),
-    }
 
 
 def player_move(player: Player) -> None:
@@ -121,15 +120,15 @@ def main():
         old_cheese_topleft = cheese.rect.topleft
         old_monster_topleft= monster.rect.topleft
 
-        player_move(player=player)
+        player_move(player)
 
         monster_move(player=player, monster=monster)    
 
-        if spritecollide(player, context['wall'], dokill=False):
-            context['player'].rect.topleft = old_player_topleft
+        if spritecollide(player, walls, dokill=False):
+            player.rect.topleft = old_player_topleft
         
-        if spritecollide(context['player'], context['maze'], dokill=False):
-            context['player'].rect.topleft = old_player_topleft
+        if spritecollide(player, maze, dokill=False):
+            player.rect.topleft = old_player_topleft
 
         if player.is_collided_with(cheese):
             context['score'] += 1
@@ -143,19 +142,25 @@ def main():
 
         if spritecollide(cheese, maze, dokill=False):
             cheese.rect.topleft = old_cheese_topleft
-        
+
+        # Uncomment if you want a monster to collide with the walls
         # if spritecollide(monster, maze, dokill=False):
         #     monster.rect.topleft = old_monster_topleft
 
-        if spritecollide(monster, walls, dokill=False):
-            monster.rect.topleft = old_monster_topleft        
-
-
+        if spritecollideany(monster, walls):
+            monster.rect.topleft = old_monster_topleft
+        
+        if collide_rect(monster, player):
+            running = False
 
         # limits FPS
         clock.tick(60) / 1000
 
-
+    screen.fill("black")
+    Text("Game Over!", (200, 200)).draw(screen)
+    Text(f"Your score is: {context['score']}", (200, 300)).draw(screen)
+    pygame.display.flip()
+    pygame.time.wait(3500)
     pygame.quit()
 
 

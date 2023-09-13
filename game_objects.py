@@ -6,9 +6,7 @@ from pygame import Surface
 from pygame.image import load
 from pygame.sprite import Sprite
 from pygame.sprite import Group
-from pygame.sprite import spritecollide 
 from pygame.transform import scale
-
 
 
 class GameObject(Sprite):
